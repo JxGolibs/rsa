@@ -20,10 +20,15 @@ import (
 // }
 
 //读取key文件
-func LoadRSAPem(dir string) (publicKey []byte, privateKey []byte, err error) {
-	publicKey, err = ioutil.ReadFile(path.Join(dir, "public.pem"))
-	privateKey, err = ioutil.ReadFile(path.Join(dir, "private.pem"))
+func LoadRSAFromPem(dir string,forceCreate... bool) (publicKey []byte, privateKey []byte, err error) {
+    if len(forceCreate)>0 && forceCreate[0] && ( !fileIsExist(path.Join(dir, "public.pem")) ||  !fileIsExist(path.Join(dir, "private.pem"))) {
+	  //RSA 密钥不存在，自动创建
+	  GenRsaKey("keys", 1024)
+	}
 
+	publicKey, err = ioutil.ReadFile(path.Join(dir, "public.pem"))
+    privateKey, err = ioutil.ReadFile(path.Join(dir, "private.pem"))
+  
 	return
 }
 
@@ -94,7 +99,15 @@ func RsaDecryptWithSha1Base64(encryptedData string, privateKey []byte) (string, 
 		return "", err
 	}
 	//key, _ := base64.StdEncoding.DecodeString(privateKey)
+	
 	prvKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 	originalData, err := rsa.DecryptPKCS1v15(rand.Reader, prvKey, encryptedDecodeBytes)
+	// originalData, err := rsa.De(rand.Reader, prvKey, encryptedDecodeBytes)
 	return string(originalData), err
+}
+
+
+func fileIsExist(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || os.IsExist(err)
 }
