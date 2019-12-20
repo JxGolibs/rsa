@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"github.com/JxGolibs/utils"
 )
 
 // func test() {
@@ -21,7 +22,7 @@ import (
 
 //读取key文件
 func LoadRSAFromPem(dir string,forceCreate... bool) (publicKey []byte, privateKey []byte, err error) {
-    if len(forceCreate)>0 && forceCreate[0] && ( !fileIsExist(path.Join(dir, "public.pem")) ||  !fileIsExist(path.Join(dir, "private.pem"))) {
+    if len(forceCreate)>0 && forceCreate[0] && ( !utils.FileIsExist(path.Join(dir, "public.pem")) ||  !utils.FileIsExist(path.Join(dir, "private.pem"))) {
 	  //RSA 密钥不存在，自动创建
 	  GenRsaKey("keys", 1024)
 	}
@@ -32,7 +33,7 @@ func LoadRSAFromPem(dir string,forceCreate... bool) (publicKey []byte, privateKe
 	return
 }
 
-//生成RSA公钥和私钥文件
+//生成RSA公钥和私钥文件(PKCS8)
 func GenRsaKey(dir string, bits int) error {
 	os.MkdirAll(dir, 0644)
 	// 生成私钥文件
@@ -40,7 +41,7 @@ func GenRsaKey(dir string, bits int) error {
 	if err != nil {
 		return err
 	}
-	derStream := x509.MarshalPKCS1PrivateKey(privateKey)
+	derStream, _ := x509.MarshalPKCS8PrivateKey(privateKey)
 	block := &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: derStream,
@@ -82,12 +83,13 @@ func RsaEncryptWithSha1Base64(originalData string, publicKey []byte) (string, er
 	if block == nil {
 		return "public rsaKey error", nil
 	}
+ 
 	pubKey, _ := x509.ParsePKIXPublicKey(block.Bytes)
 	encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey.(*rsa.PublicKey), []byte(originalData))
 	return base64.StdEncoding.EncodeToString(encryptedData), err
 }
 
-//解密：对采用sha1算法加密后转base64格式的数据进行解密（私钥PKCS1格式）
+//解密：对采用sha1算法加密后转base64格式的数据进行解密（私钥PKCS8格式）
 func RsaDecryptWithSha1Base64(encryptedData string, privateKey []byte) (string, error) {
 	block, _ := pem.Decode(privateKey)
 	if block == nil {
@@ -100,14 +102,13 @@ func RsaDecryptWithSha1Base64(encryptedData string, privateKey []byte) (string, 
 	}
 	//key, _ := base64.StdEncoding.DecodeString(privateKey)
 	
-	prvKey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-	originalData, err := rsa.DecryptPKCS1v15(rand.Reader, prvKey, encryptedDecodeBytes)
+	prvKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+	originalData, err := rsa.DecryptPKCS1v15(rand.Reader, prvKey.(*rsa.PrivateKey), encryptedDecodeBytes)
 	// originalData, err := rsa.De(rand.Reader, prvKey, encryptedDecodeBytes)
 	return string(originalData), err
 }
 
-
-func fileIsExist(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil || os.IsExist(err)
-}
+ 
